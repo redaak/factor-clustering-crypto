@@ -1,15 +1,16 @@
 # data_fetcher.py
 import pandas as pd
-import requests
+import yfinance as yf
 from datetime import datetime, timedelta
+import streamlit as st
 
 def fetch_crypto_data(coin_ids, start_date, end_date):
     """
-    Fetches historical price and volume data for a list of coin IDs from CoinGecko API.
+    Fetches historical price and volume data for a list of Yahoo Finance crypto tickers (e.g., 'BTC-USD').
     Calculates daily returns.
 
     Args:
-        coin_ids (list): A list of CoinGecko coin IDs (e.g., ["bitcoin", "ethereum"]).
+        coin_ids (list): A list of Yahoo Finance tickers (e.g., ["BTC-USD", "ETH-USD"]).
         start_date (datetime.date): The start date for data fetching.
         end_date (datetime.date): The end date for data fetching.
 
@@ -17,63 +18,55 @@ def fetch_crypto_data(coin_ids, start_date, end_date):
         pd.DataFrame: A DataFrame with 'Asset', 'Date', 'Price', 'Volume', 'Returns' columns,
                       or None if data fetching fails or no data is available.
     """
-    base_url = "https://api.coingecko.com/api/v3/coins"
     all_data = []
+    start_str = start_date.strftime('%Y-%m-%d')
+    end_str = end_date.strftime('%Y-%m-%d')
 
-    # Convert dates to Unix timestamps (milliseconds for CoinGecko)
-    start_timestamp = int(datetime.combine(start_date, datetime.min.time()).timestamp())
-    end_timestamp = int(datetime.combine(end_date, datetime.max.time()).timestamp())
-
-    for coin_id in coin_ids:
-        url = f"{base_url}/{coin_id}/market_chart/range"
-        params = {
-            "vs_currency": "usd",
-            "from": start_timestamp,
-            "to": end_timestamp
-        }
+    for ticker in coin_ids:
         try:
-            response = requests.get(url, params=params)
-            response.raise_for_status() # Raise an HTTPError for bad responses (4xx or 5xx)
-            data = response.json()
-
-            prices = data.get('prices', [])
-            volumes = data.get('total_volumes', [])
-
-            if not prices or not volumes:
-                print(f"No data available for {coin_id} in the specified range.")
+            # Validate ticker format
+            if not ticker.endswith('-USD'):
+                st.warning(f"Ticker {ticker} may not be in the correct format. Expected format: XXX-USD")
+            
+            # Create a yfinance Ticker object and fetch data
+            crypto = yf.Ticker(ticker)
+            df = crypto.history(start=start_str, end=end_str, interval='1d')
+            
+            if df.empty:
+                st.warning(f"No data available for {ticker} in the specified range.")
                 continue
-
-            # Create DataFrame for current coin
-            df_coin = pd.DataFrame({
-                'Date': [datetime.fromtimestamp(ts[0] / 1000).date() for ts in prices],
-                'Price': [p[1] for p in prices],
-                'Volume': [v[1] for v in volumes]
+                
+            df = df.reset_index()
+            df['Asset'] = ticker
+            df = df.rename(columns={
+                'Date': 'Date',
+                'Close': 'Price',
+                'Volume': 'Volume'
             })
-            df_coin['Asset'] = coin_id
-            df_coin = df_coin[['Asset', 'Date', 'Price', 'Volume']] # Reorder columns
-
-            # Ensure unique dates and sort
-            df_coin = df_coin.drop_duplicates(subset=['Date']).sort_values(by='Date').reset_index(drop=True)
-
-            # Calculate daily returns
-            df_coin['Returns'] = df_coin.groupby('Asset')['Price'].pct_change()
-
-            all_data.append(df_coin)
-
-        except requests.exceptions.RequestException as e:
-            print(f"Error fetching data for {coin_id}: {e}")
-        except ValueError as e:
-            print(f"Error parsing JSON for {coin_id}: {e}")
+            
+            df = df[['Asset', 'Date', 'Price', 'Volume']]
+            df = df.drop_duplicates(subset=['Date'])
+            df = df.sort_values(by='Date')
+            df = df.reset_index(drop=True)
+            
+            # Calculate returns
+            df['Returns'] = df.groupby('Asset')['Price'].pct_change()
+            
+            # Validate data quality
+            if df['Price'].isnull().any() or df['Volume'].isnull().any():
+                st.warning(f"Some price or volume data is missing for {ticker}")
+                df = df.fillna(method='ffill')  # Forward fill missing values
+            
+            all_data.append(df)
+            st.success(f"Successfully fetched data for {ticker}")
+            
         except Exception as e:
-            print(f"An unexpected error occurred for {coin_id}: {e}")
+            st.error(f"Error fetching data for {ticker}: {str(e)}")
+            continue
 
     if not all_data:
         return None
 
     df_final = pd.concat(all_data, ignore_index=True)
-
-    # Handle missing returns (first day of each asset will have NaN)
-    df_final['Returns'] = df_final['Returns'].fillna(0) # Or drop rows, depending on strategy
-
+    df_final['Returns'] = df_final['Returns'].fillna(0)
     return df_final
-

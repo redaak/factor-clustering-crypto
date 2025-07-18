@@ -9,6 +9,7 @@ streamlit = "*"
 scikit-learn = "*"
 plotly = "*"
 requests = "*"
+yfinance = "*"
 
 [dev-packages]
 
