@@ -6,7 +6,14 @@ from datetime import date, timedelta
 
 # Import custom modules and the new CryptoAnalyzer class
 from crypto_analyzer import CryptoAnalyzer
-from visualization import plot_clusters_2d, plot_clusters_3d, plot_factor_contributions # Still need these for direct plotting
+from visualization import plot_clusters_2d, plot_clusters_3d, plot_factor_contributions
+from investment_metrics import (
+    calculate_investment_metrics,
+    plot_correlation_matrix,
+    plot_price_trends,
+    plot_cumulative_returns,
+    plot_drawdown_analysis
+)
 
 # --- Streamlit Page Configuration ---
 st.set_page_config(
@@ -18,7 +25,9 @@ st.set_page_config(
 
 # --- Constants ---
 DEFAULT_COINS = [
-    "BTC-USD", "ETH-USD", "XRP-USD", "SOL-USD", "ADA-USD", "DOGE-USD", "DOT-USD", "LTC-USD", "LINK-USD", "AVAX-USD"
+    "BTC-USD", "ETH-USD", "XRP-USD", "SOL-USD", "ADA-USD", "DOGE-USD", "DOT-USD", "LTC-USD", "LINK-USD", "AVAX-USD",
+    "BNB-USD", "MATIC-USD", "UNI-USD", "ATOM-USD", "ALGO-USD", "NEAR-USD", "FTM-USD", "VET-USD", "HBAR-USD", "ONE-USD",
+    "SAND-USD", "MANA-USD", "AXS-USD", "THETA-USD", "GRT-USD", "ENJ-USD", "CHZ-USD", "HOT-USD", "BAT-USD", "ZIL-USD"
 ]
 FACTOR_COLUMNS = ['Volatility', 'Momentum', 'Volume_Score'] # Define factor columns for easier access
 
@@ -76,6 +85,10 @@ st.title("💰 Crypto Factor Screener & Cluster Explorer")
 st.markdown("""
 Welcome to the Crypto Factor Screener & Cluster Explorer! This application helps you analyze and group cryptocurrencies based on their financial factors and behavioral patterns using machine learning.
 """)
+
+# --- Sidebar Header ---
+st.sidebar.markdown("[Created by Reda Akdim](https://www.linkedin.com/in/reda-akdim/)")
+st.sidebar.markdown("---")
 
 # --- Sidebar for User Inputs ---
 st.sidebar.header("⚙️ Configuration")
@@ -204,6 +217,39 @@ if st.sidebar.button("🚀 Run Analysis"):
                         )
                     st.plotly_chart(fig, use_container_width=True)
 
+                    # --- Price Analysis and Investment Metrics ---
+                    st.subheader("📈 Price Analysis & Investment Metrics")
+                    
+                    # Price trends
+                    st.write("**Price Trends**")
+                    fig_prices = plot_price_trends(st.session_state.df_data, selected_coins)
+                    st.plotly_chart(fig_prices, use_container_width=True)
+                    
+                    # Cumulative returns
+                    st.write("**Cumulative Returns**")
+                    fig_returns = plot_cumulative_returns(st.session_state.df_data, selected_coins)
+                    st.plotly_chart(fig_returns, use_container_width=True)
+                    
+                    # Drawdown analysis
+                    st.write("**Drawdown Analysis**")
+                    fig_drawdown = plot_drawdown_analysis(st.session_state.df_data, selected_coins)
+                    st.plotly_chart(fig_drawdown, use_container_width=True)
+                    
+                    # Investment metrics table
+                    st.write("**Investment Metrics**")
+                    metrics_df = calculate_investment_metrics(st.session_state.df_data)
+                    st.dataframe(metrics_df.style.format({
+                        'Annual Return': '{:.2%}',
+                        'Annualized Volatility': '{:.2%}',
+                        'Sharpe Ratio': '{:.2f}',
+                        'Max Drawdown': '{:.2%}'
+                    }))
+                    
+                    # Factor correlation matrix
+                    st.write("**Factor Correlation Analysis**")
+                    fig_corr = plot_correlation_matrix(st.session_state.df_factors, FACTOR_COLUMNS)
+                    st.plotly_chart(fig_corr, use_container_width=True)
+
                     # --- Interactive Cluster Exploration ---
                     st.subheader("🔍 Interactive Cluster Exploration")
                     if st.session_state.df_clustered is not None:
@@ -295,7 +341,7 @@ else:
     st.info("Run the analysis to enable data export.")
 
 st.markdown("---")
-st.markdown("Developed with ❤️ using Streamlit, Plotly, Pandas, and Scikit-learn.")
+st.markdown("Developed with ❤️ and coffee by Reda akdim.")
 
 
 # crypto_analyzer.py

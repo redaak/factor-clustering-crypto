@@ -58,15 +58,27 @@ def fetch_crypto_data(coin_ids, start_date, end_date):
                 df = df.fillna(method='ffill')  # Forward fill missing values
             
             all_data.append(df)
-            st.success(f"Successfully fetched data for {ticker}")
             
         except Exception as e:
             st.error(f"Error fetching data for {ticker}: {str(e)}")
             continue
 
     if not all_data:
+        st.error("Could not fetch data for any of the selected cryptocurrencies.")
         return None
 
+    # Combine all data
     df_final = pd.concat(all_data, ignore_index=True)
+    
+    # Final data cleanup
     df_final['Returns'] = df_final['Returns'].fillna(0)
+    
+    # Verify we have enough data
+    min_required_days = 30  # Adjust this based on your window sizes
+    for ticker in coin_ids:
+        ticker_data = df_final[df_final['Asset'] == ticker]
+        if len(ticker_data) < min_required_days:
+            st.warning(f"Limited data available for {ticker} ({len(ticker_data)} days). Analysis might be less reliable.")
+    
+    st.success(f"Successfully processed data for {len(coin_ids)} cryptocurrencies")
     return df_final

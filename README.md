@@ -1,12 +1,8 @@
-# README.md
+# Crypto Factor Screener & Cluster Explorer 💰
 
-# Crypto Factor Screener & Cluster Explorer
+A sophisticated cryptocurrency analysis tool that combines financial factor analysis with machine learning clustering to help investors understand cryptocurrency market patterns and build diversified portfolios.
 
-## Overview
-
-The **Crypto Factor Screener & Cluster Explorer** is a Streamlit web application designed for cryptocurrency enthusiasts, investors, and data scientists. It provides a powerful tool to analyze cryptocurrency assets by calculating key financial factors, applying machine learning for behavioral clustering, and visualizing these clusters in an interactive 2D or 3D space. Users can explore individual clusters, understand their factor contributions, build hypothetical portfolios, and export their analysis results.
-
-## Features
+## 🚀 Features
 
 - **Data Fetching:** Fetches historical price and volume data for various cryptocurrencies from the CoinGecko API.
 - **Factor Calculation:** Computes essential financial factors such as:
