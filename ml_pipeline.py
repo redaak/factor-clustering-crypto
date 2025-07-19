@@ -1,11 +1,12 @@
 
 # ml_pipeline.py
 import pandas as pd
+import numpy as np
+import streamlit as st
 from sklearn.preprocessing import StandardScaler
 from sklearn.decomposition import PCA
 from sklearn.manifold import TSNE
 from sklearn.cluster import KMeans, DBSCAN
-import numpy as np
 
 def normalize_data(df, columns_to_normalize):
     """
@@ -54,16 +55,44 @@ def apply_tsne(df, n_components):
         pd.DataFrame: DataFrame with 'DR_Component_1', 'DR_Component_2' (and 'DR_Component_3') columns.
         sklearn.manifold.TSNE: The fitted t-SNE model.
     """
-    tsne = TSNE(n_components=n_components, random_state=42, perplexity=min(5, len(df)-1), n_iter=1000)
-    # Perplexity should be less than the number of samples.
-    # Adjust perplexity if dataset is very small.
-    if len(df) <= 1:
-        return pd.DataFrame(), None # Not enough samples for t-SNE
+    try:
+        # Calculate appropriate perplexity based on dataset size
+        n_samples = len(df)
+        if n_samples <= 1:
+            st.error("Not enough samples for t-SNE (need at least 2 samples)")
+            return pd.DataFrame(), None
+        
+        # Adjust perplexity based on sample size
+        if n_samples < 30:
+            perplexity = max(2, min(n_samples // 3, 30))
+            n_iter = 2000  # Increase iterations for small datasets
+        else:
+            perplexity = min(30, n_samples // 5)
+            n_iter = 1000
 
-    components = tsne.fit_transform(df)
-    col_names = [f'DR_Component_{i+1}' for i in range(n_components)]
-    df_dr = pd.DataFrame(data=components, columns=col_names, index=df.index)
-    return df_dr, tsne
+        # Initialize t-SNE with optimized parameters
+        tsne = TSNE(
+            n_components=n_components,
+            random_state=42,
+            perplexity=perplexity,
+            max_iter=n_iter,
+            learning_rate='auto',  # Auto-tune the learning rate
+            init='pca',  # Use PCA initialization for better stability
+            n_jobs=-1  # Use all CPU cores
+        )
+
+        # Apply t-SNE transformation
+        components = tsne.fit_transform(df)
+        
+        # Create output DataFrame
+        col_names = [f'DR_Component_{i+1}' for i in range(n_components)]
+        df_dr = pd.DataFrame(data=components, columns=col_names, index=df.index)
+        
+        return df_dr, tsne
+
+    except Exception as e:
+        st.error(f"t-SNE failed: {str(e)}. Try reducing the number of components or using PCA instead.")
+        return pd.DataFrame(), None
 
 def perform_kmeans_clustering(df, n_clusters):
     """
@@ -161,7 +190,7 @@ def run_ml_pipeline(df_factors, dr_method, n_components, clustering_method, n_cl
         print("Dimensionality reduction resulted in an empty DataFrame.")
         return None
 
-    # 3. Clustering
+    # Clustering
     clusters = pd.Series()
     if clustering_method == "K-Means":
         if n_clusters is None or n_clusters < 2:

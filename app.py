@@ -82,61 +82,91 @@ def calculate_portfolio_risk_summary(df_clustered, selected_assets):
 
 # --- UI Layout ---
 st.title("💰 Crypto Factor Screener & Cluster Explorer")
+
 st.markdown("""
-Welcome to the Crypto Factor Screener & Cluster Explorer! This application helps you analyze and group cryptocurrencies based on their financial factors and behavioral patterns using machine learning.
+Welcome to the **Crypto Factor Screener & Cluster Explorer**!
+
+This application helps you understand and group digital assets based on their fundamental financial characteristics and behavioral patterns using machine learning.
+
+### What does it do?
+
+1.  **Factor Screening**: We first analyze each cryptocurrency to calculate key financial "factors" that describe its behavior. Think of these as its unique financial DNA.
 """)
 
-# --- Sidebar Header ---
+st.markdown("    * **Volatility ($\sigma$)**: How much an asset's price fluctuates. A higher value means more unpredictable price swings.")
+st.latex(r"\sigma = \sqrt{\frac{1}{N-1} \sum_{i=1}^{N} (R_i - \bar{R})^2}")
+st.markdown("    Where $R_i$ is the daily return, $\\bar{R}$ is the average return, and $N$ is the number of days in the window.")
+
+st.markdown("    * **Momentum (M)**: The tendency of an asset's price to continue in its current direction. Positive momentum means it's been going up, negative means down.")
+st.latex(r"M = \frac{P_{\text{current}} - P_{\text{past}}}{P_{\text{past}}}")
+st.markdown("    Where $P_{\text{current}}$ is the current price and $P_{\text{past}}$ is the price from a defined period ago.")
+
+st.markdown("    * **Volume Score (V)**: A measure of trading activity, normalized to allow fair comparison across assets of different sizes.")
+st.latex(r"V = \log(1 + \text{Average Daily Volume})")
+st.markdown("    Using $\log(1+x)$ helps to scale down very large volume numbers and makes them comparable.")
+
+st.markdown("""
+2.  **Cluster Exploration**: Once we have these factors, we use advanced machine learning (like PCA/t-SNE for visualization and K-Means/DBSCAN for grouping) to find natural "clusters" of cryptocurrencies that behave similarly. This helps you:
+    * **Identify similar assets**: Discover which cryptos move together or share risk profiles.
+    * **Diversify your portfolio**: Pick assets from different clusters to spread risk.
+    * **Spot emerging trends**: See if new groups are forming or existing ones are changing.
+
+Dive in and start exploring the hidden patterns in the crypto market!
+            click run analysis on the sidebar to begin.
+""")
+
+# --- Sidebar Configuration ---
 st.sidebar.markdown("[Created by Reda Akdim](https://www.linkedin.com/in/reda-akdim/)")
 st.sidebar.markdown("---")
 
-# --- Sidebar for User Inputs ---
-st.sidebar.header("⚙️ Configuration")
-
-# Coin Selection
-st.sidebar.subheader("1. Select Cryptocurrencies")
+# 1. Coin Selection
+st.sidebar.subheader("Select Cryptocurrencies")
 selected_coins = st.sidebar.multiselect(
-    "Choose coins (max 20 recommended for performance):",
+    "Choose coins (max 20 recommended):",
     options=DEFAULT_COINS,
     default=DEFAULT_COINS[:10],
-    help="Select the cryptocurrencies you want to analyze. Data is fetched from Yahoo Finance (yfinance). Use tickers like 'BTC-USD', 'ETH-USD', etc."
+    key="coin_selector"
 )
 
-# Date Range Selection
-st.sidebar.subheader("2. Data Range")
+# 2. Run Analysis Button
+st.sidebar.subheader("Run Analysis")
+run_analysis = st.sidebar.button("🚀 Run Analysis", type="primary", key="run_analysis_btn")
+
+# 3. Date Range Selection
+st.sidebar.subheader("Data Range")
 today = date.today()
 end_date = st.sidebar.date_input("End Date:", value=today)
 start_date = st.sidebar.date_input("Start Date:", value=end_date - timedelta(days=365))
 if start_date >= end_date:
     st.sidebar.error("Start date must be before end date.")
 
-# Factor Calculation Parameters
+# 3. Factor Calculation Parameters
 st.sidebar.subheader("3. Factor Calculation Parameters")
-volatility_window = st.sidebar.slider("Volatility Window (days):", 7, 90, 30, help="Period for calculating price volatility.")
-momentum_window = st.sidebar.slider("Momentum Window (days):", 7, 180, 60, help="Period for calculating price momentum (returns).")
-volume_window = st.sidebar.slider("Volume Score Window (days):", 7, 90, 30, help="Period for calculating average volume for scoring.")
+volatility_window = st.sidebar.slider("Volatility Window (days):", 7, 90, 30, help="Period for calculating price volatility.", key="volatility_window")
+momentum_window = st.sidebar.slider("Momentum Window (days):", 7, 180, 60, help="Period for calculating price momentum (returns).", key="momentum_window")
+volume_window = st.sidebar.slider("Volume Score Window (days):", 7, 90, 30, help="Period for calculating average volume for scoring.", key="volume_window")
 
-# Machine Learning Parameters
+# 4. Machine Learning Parameters
 st.sidebar.subheader("4. Machine Learning Parameters")
-
 dr_method = st.sidebar.selectbox(
     "Dimensionality Reduction Method:",
     options=["PCA", "t-SNE"],
-    help="PCA (Principal Component Analysis) is faster, t-SNE (t-Distributed Stochastic Neighbor Embedding) is better for visualizing complex non-linear relationships."
+    help="PCA (Principal Component Analysis) is faster, t-SNE (t-Distributed Stochastic Neighbor Embedding) is better for visualizing complex non-linear relationships.",
+    key="dr_method"
 )
-
 n_components = st.sidebar.slider(
     "Number of Components (for DR):",
     min_value=2,
     max_value=3,
     value=2,
-    help="Number of dimensions to reduce factors to (2D or 3D for visualization)."
+    help="Number of dimensions to reduce factors to (2D or 3D for visualization).",
+    key="n_components"
 )
-
 clustering_method = st.sidebar.selectbox(
     "Clustering Method:",
     options=["K-Means", "DBSCAN"],
-    help="K-Means requires a predefined number of clusters. DBSCAN finds clusters based on density and can identify noise."
+    help="K-Means requires a predefined number of clusters. DBSCAN finds clusters based on density and can identify noise.",
+    key="clustering_method"
 )
 
 n_clusters = None
@@ -144,156 +174,129 @@ eps = None
 min_samples = None
 
 if clustering_method == "K-Means":
-    n_clusters = st.sidebar.slider("Number of Clusters (K-Means):", 2, 10, 4, help="The number of clusters K-Means will try to form.")
+    n_clusters = st.sidebar.slider("Number of Clusters (K-Means):", 2, 10, 4, help="The number of clusters K-Means will try to form.", key="n_clusters")
 elif clustering_method == "DBSCAN":
-    eps = st.sidebar.slider("DBSCAN Epsilon (eps):", 0.1, 2.0, 0.5, 0.1, help="The maximum distance between two samples for one to be considered as in the neighborhood of the other.")
-    min_samples = st.sidebar.slider("DBSCAN Min Samples:", 2, 10, 5, help="The number of samples (or total weight) in a neighborhood for a point to be considered as a core point.")
+    eps = st.sidebar.slider("DBSCAN Epsilon (eps):", 0.1, 2.0, 0.5, 0.1, help="The maximum distance between two samples for one to be considered as in the neighborhood of the other.", key="eps")
+    min_samples = st.sidebar.slider("DBSCAN Min Samples:", 2, 10, 5, help="The number of samples (or total weight) in a neighborhood for a point to be considered as a core point.", key="min_samples")
 
+# --- Results Display ---
+if not selected_coins:
+    st.sidebar.warning("Please select at least one cryptocurrency to analyze.")
+elif run_analysis:  # Only run analysis when the button is clicked
+    with st.spinner("Fetching data and running analysis... This might take a moment."):
+        try:
+            # Initialize the CryptoAnalyzer instance
+            analyzer = CryptoAnalyzer(
+                coin_ids=selected_coins,
+                start_date=start_date,
+                end_date=end_date,
+                volatility_window=volatility_window,
+                momentum_window=momentum_window,
+                volume_window=volume_window,
+                dr_method=dr_method,
+                n_components=n_components,
+                clustering_method=clustering_method,
+                n_clusters=n_clusters,
+                eps=eps,
+                min_samples=min_samples
+            )
+            # Run the full analysis pipeline
+            analysis_success = analyzer.run_analysis()
+            if analysis_success:
+                st.session_state.crypto_analyzer = analyzer
+                st.session_state.df_data = analyzer.df_data
+                st.session_state.df_factors = analyzer.df_factors
+                st.session_state.df_clustered = analyzer.df_clustered
+                st.success("Analysis completed successfully!")
+            else:
+                st.error("Analysis failed. Please check the parameters and try again.")
+        except Exception as e:
+            st.error(f"An unexpected error occurred during analysis: {str(e)}")
+            st.session_state.df_data = None
+            st.session_state.df_factors = None
+            st.session_state.df_clustered = None
 
-# --- Run Analysis Button ---
-if st.sidebar.button("🚀 Run Analysis"):
-    if not selected_coins:
-        st.sidebar.warning("Please select at least one cryptocurrency to analyze.")
-    else:
-        with st.spinner("Fetching data and running analysis... This might take a moment."):
-            try:
-                # Initialize the CryptoAnalyzer instance
-                st.session_state.crypto_analyzer = CryptoAnalyzer(
-                    coin_ids=selected_coins,
-                    start_date=start_date,
-                    end_date=end_date,
-                    volatility_window=volatility_window,
-                    momentum_window=momentum_window,
-                    volume_window=volume_window,
-                    dr_method=dr_method,
-                    n_components=n_components,
-                    clustering_method=clustering_method,
-                    n_clusters=n_clusters,
-                    eps=eps,
-                    min_samples=min_samples
-                )
+# Always show visuals if analysis results are available
+if st.session_state.df_data is not None and st.session_state.df_clustered is not None:
+    st.subheader("📊 Data Fetching & Cleaning")
+    st.write("Raw Data Sample (last 5 days):")
+    st.dataframe(st.session_state.df_data.tail())
 
-                # Run the full analysis pipeline
-                analysis_success = st.session_state.crypto_analyzer.run_analysis()
+    st.subheader("📈 Factor Calculation")
+    st.write("Calculated Factors Sample:")
+    st.dataframe(st.session_state.df_factors.head())
+    st.write("Factor Statistics:")
+    st.dataframe(st.session_state.df_factors[FACTOR_COLUMNS].describe())
 
-                if analysis_success:
-                    st.success("Analysis completed successfully!")
-                    st.session_state.df_data = st.session_state.crypto_analyzer.df_data
-                    st.session_state.df_factors = st.session_state.crypto_analyzer.df_factors
-                    st.session_state.df_clustered = st.session_state.crypto_analyzer.df_clustered
+    st.subheader("✨ Cluster Visualization")
+    st.info("Visualizing clusters. Click on points in the plot to see asset details.")
+    if n_components == 2:
+        fig = plot_clusters_2d(
+            st.session_state.df_clustered,
+            'DR_Component_1',
+            'DR_Component_2',
+            'Cluster',
+            f'{clustering_method} Clusters ({dr_method} 2D)'
+        )
+    else:  # n_components == 3
+        fig = plot_clusters_3d(
+            st.session_state.df_clustered,
+            'DR_Component_1',
+            'DR_Component_2',
+            'DR_Component_3',
+            'Cluster',
+            f'{clustering_method} Clusters ({dr_method} 3D)'
+        )
+    st.plotly_chart(fig, use_container_width=True)
 
-                    # Display raw data sample
-                    st.subheader("📊 Data Fetching & Cleaning")
-                    st.write("Raw Data Sample (last 5 days):")
-                    st.dataframe(st.session_state.df_data.tail())
+    st.subheader("📈 Price Analysis & Investment Metrics")
+    fig_prices = plot_price_trends(st.session_state.df_data, selected_coins)
+    st.plotly_chart(fig_prices, use_container_width=True)
 
-                    # Display calculated factors sample
-                    st.subheader("📈 Factor Calculation")
-                    st.write("Calculated Factors Sample:")
-                    st.dataframe(st.session_state.df_factors.head())
-                    st.write("Factor Statistics:")
-                    st.dataframe(st.session_state.df_factors[FACTOR_COLUMNS].describe())
+    fig_returns = plot_cumulative_returns(st.session_state.df_data, selected_coins)
+    st.plotly_chart(fig_returns, use_container_width=True)
 
-                    # 4. Visualize Clusters
-                    st.subheader("✨ Cluster Visualization")
-                    st.info("Visualizing clusters. Click on points in the plot to see asset details.")
+    fig_drawdown = plot_drawdown_analysis(st.session_state.df_data, selected_coins)
+    st.plotly_chart(fig_drawdown, use_container_width=True)
 
-                    if n_components == 2:
-                        fig = plot_clusters_2d(
-                            st.session_state.df_clustered,
-                            'DR_Component_1',
-                            'DR_Component_2',
-                            'Cluster',
-                            f'{clustering_method} Clusters ({dr_method} 2D)'
-                        )
-                    else: # n_components == 3
-                        fig = plot_clusters_3d(
-                            st.session_state.df_clustered,
-                            'DR_Component_1',
-                            'DR_Component_2',
-                            'DR_Component_3',
-                            'Cluster',
-                            f'{clustering_method} Clusters ({dr_method} 3D)'
-                        )
-                    st.plotly_chart(fig, use_container_width=True)
+    st.write("**Investment Metrics**")
+    metrics_df = calculate_investment_metrics(st.session_state.df_data)
+    st.dataframe(metrics_df.style.format({
+        'Annual Return': '{:.2%}',
+        'Annualized Volatility': '{:.2%}',
+        'Sharpe Ratio': '{:.2f}',
+        'Max Drawdown': '{:.2%}'
+    }))
 
-                    # --- Price Analysis and Investment Metrics ---
-                    st.subheader("📈 Price Analysis & Investment Metrics")
-                    
-                    # Price trends
-                    st.write("**Price Trends**")
-                    fig_prices = plot_price_trends(st.session_state.df_data, selected_coins)
-                    st.plotly_chart(fig_prices, use_container_width=True)
-                    
-                    # Cumulative returns
-                    st.write("**Cumulative Returns**")
-                    fig_returns = plot_cumulative_returns(st.session_state.df_data, selected_coins)
-                    st.plotly_chart(fig_returns, use_container_width=True)
-                    
-                    # Drawdown analysis
-                    st.write("**Drawdown Analysis**")
-                    fig_drawdown = plot_drawdown_analysis(st.session_state.df_data, selected_coins)
-                    st.plotly_chart(fig_drawdown, use_container_width=True)
-                    
-                    # Investment metrics table
-                    st.write("**Investment Metrics**")
-                    metrics_df = calculate_investment_metrics(st.session_state.df_data)
-                    st.dataframe(metrics_df.style.format({
-                        'Annual Return': '{:.2%}',
-                        'Annualized Volatility': '{:.2%}',
-                        'Sharpe Ratio': '{:.2f}',
-                        'Max Drawdown': '{:.2%}'
-                    }))
-                    
-                    # Factor correlation matrix
-                    st.write("**Factor Correlation Analysis**")
-                    fig_corr = plot_correlation_matrix(st.session_state.df_factors, FACTOR_COLUMNS)
-                    st.plotly_chart(fig_corr, use_container_width=True)
+    st.write("**Factor Correlation Analysis**")
+    fig_corr = plot_correlation_matrix(st.session_state.df_factors, FACTOR_COLUMNS)
+    st.plotly_chart(fig_corr, use_container_width=True)
 
-                    # --- Interactive Cluster Exploration ---
-                    st.subheader("🔍 Interactive Cluster Exploration")
-                    if st.session_state.df_clustered is not None:
-                        cluster_options = sorted(st.session_state.df_clustered['Cluster'].unique().tolist())
-                        if -1 in cluster_options: # DBSCAN noise cluster
-                            cluster_options.remove(-1)
-                            cluster_options.insert(0, -1) # Put noise at the beginning
+    st.subheader("🔍 Interactive Cluster Exploration")
+    cluster_options = sorted(st.session_state.df_clustered['Cluster'].unique().tolist())
+    if -1 in cluster_options:  # DBSCAN noise cluster
+        cluster_options.remove(-1)
+        cluster_options.insert(0, -1)  # Put noise at the beginning
 
-                        selected_cluster = st.selectbox(
-                            "Select a Cluster to Explore:",
-                            options=cluster_options,
-                            index=0,
-                            format_func=lambda x: f"Cluster {x}" if x != -1 else "Noise (-1)"
-                        )
-                        st.session_state.selected_cluster_id = selected_cluster
+    selected_cluster = st.selectbox(
+        "Select a Cluster to Explore:",
+        options=cluster_options,
+        index=0,
+        format_func=lambda x: f"Cluster {x}" if x != -1 else "Noise (-1)"
+    )
+    st.session_state.selected_cluster_id = selected_cluster
 
-                        if st.session_state.selected_cluster_id is not None:
-                            cluster_data = st.session_state.df_clustered[
-                                st.session_state.df_clustered['Cluster'] == st.session_state.selected_cluster_id
-                            ].sort_values(by='Asset')
+    if st.session_state.selected_cluster_id is not None:
+        cluster_data = st.session_state.df_clustered[
+            st.session_state.df_clustered['Cluster'] == st.session_state.selected_cluster_id
+        ].sort_values(by='Asset')
 
-                            st.write(f"**Assets in Cluster {st.session_state.selected_cluster_id}:**")
-                            st.dataframe(cluster_data[['Asset'] + FACTOR_COLUMNS])
+        st.write(f"**Assets in Cluster {st.session_state.selected_cluster_id}:**")
+        st.dataframe(cluster_data[['Asset'] + FACTOR_COLUMNS])
 
-                            # Plot factor contributions for the selected cluster
-                            st.write(f"**Average Factor Contributions for Cluster {st.session_state.selected_cluster_id}:**")
-                            fig_factors = plot_factor_contributions(cluster_data, st.session_state.selected_cluster_id, FACTOR_COLUMNS)
-                            st.plotly_chart(fig_factors, use_container_width=True)
-                    else:
-                        st.info("Run analysis first to explore clusters.")
-
-                else:
-                    st.error("Analysis failed. Please check the parameters and try again.")
-                    # Clear session state data if analysis failed
-                    st.session_state.df_data = None
-                    st.session_state.df_factors = None
-                    st.session_state.df_clustered = None
-
-            except Exception as e:
-                st.error(f"An unexpected error occurred during analysis: {e}")
-                st.exception(e) # Display full traceback for debugging
-                st.session_state.df_data = None
-                st.session_state.df_factors = None
-                st.session_state.df_clustered = None
+        st.write(f"**Average Factor Contributions for Cluster {st.session_state.selected_cluster_id}:**")
+        fig_factors = plot_factor_contributions(cluster_data, st.session_state.selected_cluster_id, FACTOR_COLUMNS)
+        st.plotly_chart(fig_factors, use_container_width=True)
 
 
 # --- Portfolio Builder ---
@@ -304,7 +307,8 @@ if st.session_state.df_clustered is not None:
         "Select assets for your portfolio:",
         options=all_assets,
         default=st.session_state.portfolio_assets,
-        help="Choose cryptocurrencies to build a hypothetical portfolio."
+        help="Choose cryptocurrencies to build a hypothetical portfolio.",
+        key="portfolio_asset_selector"
     )
 
     if st.session_state.portfolio_assets:

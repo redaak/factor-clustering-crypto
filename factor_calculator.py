@@ -96,3 +96,5 @@ def calculate_all_factors(df_data, volatility_window=30, momentum_window=60, vol
     # Select relevant columns for the output
     factor_cols = ['Asset', 'Volatility', 'Momentum', 'Volume_Score']
     return latest_factors[factor_cols]
+
+#not like us
